@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Master SQL</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; padding: 30px; margin: 0; }
+        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 550px; position: relative; }
+        .alert { background: #fee2e2; color: #dc2626; padding: 10px; border-radius: 8px; margin-bottom: 1rem; text-align: center; font-size: 0.8rem; }
+        .progress-container { background: #e9ecef; border-radius: 10px; height: 8px; margin-bottom: 15px; overflow: hidden; }
+        .progress-bar { background: #28a745; height: 100%; transition: width 0.4s; }
+        .search-box { display: flex; gap: 5px; margin-bottom: 15px; }
+        .search-box input { flex: 1; border-radius: 20px; padding: 8px 15px; border: 1px solid #ddd; }
+        .prio-3 { border-left: 5px solid #dc3545; } .prio-2 { border-left: 5px solid #ffc107; } .prio-1 { border-left: 5px solid #6c757d; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #fff; margin-bottom: 5px; }
+        .concluida { text-decoration: line-through; color: #90949c; opacity: 0.6; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        {% with messages = get_flashed_messages() %}{% if messages %}{% for m in messages %}<div class="alert">{{m}}</div>{% endfor %}{% endif %}{% endwith %}
+
+        {% if tela == 'login' %}
+            <h1>🔐 Login</h1>
+            <form action="/login" method="POST" style="display:flex; flex-direction:column; gap:10px;">
+                <input type="text" name="usuario" placeholder="Usuário" required style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <input type="password" name="senha" placeholder="Senha" required style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <button type="submit" style="padding:10px; border-radius:8px; border:none; background:#28a745; color:white; font-weight:bold; cursor:pointer;">Entrar</button>
+            </form>
+            <a href="/cadastro" style="display:block; text-align:center; font-size:0.8rem; margin-top:10px; text-decoration:none;">Criar conta</a>
+
+        {% elif tela == 'cadastro' %}
+            <h1>📝 Cadastro</h1>
+            <form action="/cadastro" method="POST" style="display:flex; flex-direction:column; gap:10px;">
+                <input type="text" name="usuario" placeholder="Novo Usuário" required style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <input type="password" name="senha" placeholder="Nova Senha" required style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <button type="submit" style="padding:10px; border-radius:8px; border:none; background:#28a745; color:white; font-weight:bold; cursor:pointer;">Registrar</button>
+            </form>
+            <a href="/login" style="display:block; text-align:center; font-size:0.8rem; margin-top:10px; text-decoration:none;">Voltar para Login</a>
+
+        {% elif tela == 'perfil' %}
+            <div style="text-align: right;"><a href="/" style="font-size:0.8rem; text-decoration:none; color:#666;">Voltar</a></div>
+            <h1>👤 {{ session['user_nome'] }}</h1>
+            <p style="text-align: center;">📊 Total: {{ total }} | ✅ {{ concluidas }} ({{ progresso }}%)</p>
+            <form action="/perfil" method="POST" style="display:flex; flex-direction:column; gap:10px;">
+                <input type="password" name="senha_atual" placeholder="Senha Atual" required style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <input type="password" name="nova_senha" placeholder="Nova Senha" required style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <button type="submit" style="padding:10px; border-radius:8px; border:none; background:#28a745; color:white; font-weight:bold; cursor:pointer;">Mudar Senha</button>
+            </form>
+
+        {% else %}
+            <div style="text-align: right; font-size:0.8rem; margin-bottom:10px;">
+                <a href="/perfil" style="text-decoration:none; color:#666;">Perfil</a> | <a href="/logout" style="color:#dc3545; text-decoration:none;">Sair</a>
+            </div>
+            <h1>🚀 Minhas Tarefas</h1>
+
+            <form action="/" method="GET" class="search-box">
+                <input type="text" name="q" placeholder="🔍 Pesquisar..." value="{{ busca if busca }}">
+                <button type="submit" style="background:none; border:none; cursor:pointer;">Buscar</button>
+            </form>
+
+            <div class="progress-container"><div class="progress-bar" style="width: {{ progresso|default(0) }}%;"></div></div>
+
+            <form action="/adicionar" method="POST" style="display:flex; gap:5px; margin-bottom:15px; flex-wrap:wrap;">
+                <input type="text" name="texto_tarefa" placeholder="O que fazer?" required style="flex:2; padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <input type="date" name="data_vencimento" style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <select name="prioridade" style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+                    <option value="3">Urgente</option>
+                    <option value="2" selected>Normal</option>
+                    <option value="1">Baixa</option>
+                </select>
+                <button type="submit" style="background:#28a745; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer;">Add</button>
+            </form>
+
+            <ul>
+                {% for tarefa in tarefas %}
+                <li class="prio-{{ tarefa.prioridade }}">
+                    {% if edit_id == tarefa.id %}
+                        <form action="{{ url_for('atualizar', id_tarefa=tarefa.id) }}" method="POST" style="margin:0; flex:1; display:flex; gap:5px;">
+                            <input type="text" name="novo_texto" value="{{ tarefa.texto }}" required style="flex:1; padding:5px; border-radius:5px; border:1px solid #ddd;">
+                            <button type="submit" style="background:#28a745; color:white; border:none; padding:5px; border-radius:5px;">OK</button>
+                        </form>
+                    {% else %}
+                        <div style="flex:1;">
+                            <span class="{{ 'concluida' if tarefa.feito else '' }}">{{ tarefa.texto }}</span>
+                            {% if tarefa.data_vencimento %}<br><small>📅 {{ tarefa.data_vencimento }}</small>{% endif %}
+                        </div>
+                        <div style="display:flex; gap:10px;">
+                            <a href="{{ url_for('index', edit_id=tarefa.id) }}" style="text-decoration:none; color:#ffc107;">✎</a>
+                            <a href="/completar/{{ tarefa.id }}" style="text-decoration:none;">✔</a>
+                            <a href="/excluir/{{ tarefa.id }}" style="text-decoration:none; color:#dc3545;">✖</a>
+                        </div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+</body>
+</html>
