@@ -1,15 +1,21 @@
+import os
+import zipfile
+import smtplib
+from email.message import EmailMessage
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
-import os
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
-app.secret_key = 'seguranca_marcelo_rodrigues_2026'
 
-# Configuração do Banco de Dados
+# --- CIBERSEGURANÇA: Chaves e Ambiente ---
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-fallback-123')
+
 base_dir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(base_dir, 'database.db')
+db_path = os.path.join(base_dir, 'database.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -30,22 +36,45 @@ class Tarefa(db.Model):
     prioridade = db.Column(db.Integer, default=2)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
 
-with app.app_context():
-    db.create_all()
+# --- SISTEMA DE BACKUP AUTOMÁTICO ---
+def enviar_backup():
+    user = os.environ.get('EMAIL_USER')
+    password = os.environ.get('EMAIL_PASS')
+    destino = os.environ.get('EMAIL_DESTINO')
 
-# --- AUXILIARES ---
-def obter_stats(user_id):
-    tarefas_user = Tarefa.query.filter_by(usuario_id=user_id).all()
-    total = len(tarefas_user)
-    if total == 0: return 0, 0, 0
-    concluidas = len([t for t in tarefas_user if t.feito])
-    return total, concluidas, int((concluidas / total) * 100)
+    if all([user, password, destino]):
+        try:
+            zip_name = "backup_database.zip"
+            with zipfile.ZipFile(zip_name, 'w') as z:
+                if os.path.exists(db_path):
+                    z.write(db_path, arcname="database.db")
+            
+            msg = EmailMessage()
+            msg['Subject'] = f"📦 Backup Task Master - Render Cloud"
+            msg['From'] = user
+            msg['To'] = destino
+            msg.set_content("Backup semanal automatizado do banco de dados SQLite.")
 
-# --- ROTAS ---
+            with open(zip_name, 'rb') as f:
+                msg.add_attachment(f.read(), maintype='application', subtype='zip', filename=zip_name)
+
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                smtp.login(user, password)
+                smtp.send_message(msg)
+            
+            os.remove(zip_name)
+            print("✅ Backup enviado.")
+        except Exception as e:
+            print(f"❌ Erro no backup: {e}")
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=enviar_backup, trigger="cron", day_of_week="mon", hour=3)
+scheduler.start()
+
+# --- ROTAS PRINCIPAIS ---
 
 @app.route('/')
-@app.route('/editar/<int:edit_id>')
-def index(edit_id=None):
+def index():
     if 'user_id' not in session: return redirect(url_for('login'))
     
     busca = request.args.get('q', '')
@@ -54,85 +83,58 @@ def index(edit_id=None):
         query = query.filter(Tarefa.texto.contains(busca))
     
     minhas_tarefas = query.order_by(Tarefa.prioridade.desc(), Tarefa.data_vencimento).all()
-    _, _, p = obter_stats(session['user_id'])
-    return render_template('index.html', tarefas=minhas_tarefas, edit_id=edit_id, progresso=p, busca=busca, tela='app')
+    
+    # Cálculo de Progresso (Métrica CS)
+    total = len(minhas_tarefas)
+    concluidas = len([t for t in minhas_tarefas if t.feito])
+    p = int((concluidas / total) * 100) if total > 0 else 0
+    
+    return render_template('index.html', tarefas=minhas_tarefas, progresso=p, busca=busca, tela='app')
 
+# --- TELA DE ADMIN (Nova Funcionalidade) ---
+@app.route('/admin-dashboard')
+def admin():
+    if 'user_id' not in session: return redirect(url_for('login'))
+    
+    # Estatísticas Globais do Sistema
+    total_usuarios = Usuario.query.count()
+    total_tarefas = Tarefa.query.count()
+    tarefas_concluidas = Tarefa.query.filter_by(feito=True).count()
+    
+    return render_template('index.html', tela='admin', 
+                           u_count=total_usuarios, 
+                           t_count=total_tarefas, 
+                           c_count=tarefas_concluidas)
+
+# --- AUTH E CRUD (Usando session.get para evitar avisos) ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        nome = request.form.get('usuario')
-        senha = request.form.get('senha')
-        user = Usuario.query.filter_by(nome_usuario=nome).first()
-        if user and check_password_hash(user.senha_hash, senha):
+        user = Usuario.query.filter_by(nome_usuario=request.form.get('usuario')).first()
+        if user and check_password_hash(user.senha_hash, request.form.get('senha')):
             session['user_id'] = user.id
             session['user_nome'] = user.nome_usuario
             return redirect(url_for('index'))
-        flash('Acesso negado: Credenciais inválidas.')
-    return render_template('index.html', tela='login', progresso=0)
+        flash('Credenciais inválidas.')
+    return render_template('index.html', tela='login')
 
 @app.route('/cadastro', methods=['GET', 'POST'])
 def cadastro():
     if request.method == 'POST':
         nome = request.form.get('usuario')
-        senha = request.form.get('senha')
         if Usuario.query.filter_by(nome_usuario=nome).first():
-            flash('Usuário já cadastrado.')
+            flash('Usuário já existe.')
         else:
-            db.session.add(Usuario(nome_usuario=nome, senha_hash=generate_password_hash(senha)))
+            db.session.add(Usuario(nome_usuario=nome, senha_hash=generate_password_hash(request.form.get('senha'))))
             db.session.commit()
-            flash('Conta criada! Faça login.')
             return redirect(url_for('login'))
-    return render_template('index.html', tela='cadastro', progresso=0)
+    return render_template('index.html', tela='cadastro')
 
-@app.route('/perfil', methods=['GET', 'POST'])
-def perfil():
-    if 'user_id' not in session: return redirect(url_for('login'))
-    user = db.session.get(Usuario, session['user_id'])
-    if request.method == 'POST':
-        if check_password_hash(user.senha_hash, request.form.get('senha_atual')):
-            user.senha_hash = generate_password_hash(request.form.get('nova_senha'))
-            db.session.commit()
-            flash('Senha atualizada com sucesso.')
-        else:
-            flash('Senha atual incorreta.')
-    t, c, p = obter_stats(session['user_id'])
-    return render_template('index.html', tela='perfil', total=t, concluidas=c, progresso=p)
-
-@app.route('/adicionar', methods=['POST'])
-def adicionar():
-    if 'user_id' in session:
-        db.session.add(Tarefa(
-            texto=request.form.get('texto_tarefa'),
-            data_vencimento=request.form.get('data_vencimento'),
-            prioridade=int(request.form.get('prioridade', 2)),
-            usuario_id=session['user_id']
-        ))
-        db.session.commit()
-    return redirect(url_for('index'))
-
-@app.route('/completar/<int:id_tarefa>')
-def completar(id_tarefa):
-    tarefa = db.session.get(Tarefa, id_tarefa)
-    if tarefa and tarefa.usuario_id == session.get('user_id'):
-        tarefa.feito = True
-        db.session.commit()
-    return redirect(url_for('index'))
-
-@app.route('/excluir/<int:id_tarefa>')
-def excluir(id_tarefa):
-    tarefa = db.session.get(Tarefa, id_tarefa)
-    if tarefa and tarefa.usuario_id == session.get('user_id'):
-        db.session.delete(tarefa)
-        db.session.commit()
-    return redirect(url_for('index'))
-
-@app.route('/atualizar/<int:id_tarefa>', methods=['POST'])
-def atualizar(id_tarefa):
-    tarefa = db.session.get(Tarefa, id_tarefa)
-    if tarefa and tarefa.usuario_id == session.get('user_id'):
-        tarefa.texto = request.form.get('novo_texto')
-        tarefa.data_vencimento = request.form.get('nova_data')
-        tarefa.prioridade = int(request.form.get('nova_prio'))
+@app.route('/completar/<int:id>')
+def completar(id):
+    t = db.session.get(Tarefa, id) # Correção LegacyAPI
+    if t and t.usuario_id == session.get('user_id'):
+        t.feito = True
         db.session.commit()
     return redirect(url_for('index'))
 
@@ -142,4 +144,6 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
