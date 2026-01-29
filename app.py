@@ -10,9 +10,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 
-# --- CONFIGURAÇÕES DE SEGURANÇA E AMBIENTE ---
-# Busca as chaves configuradas no painel do Render
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-fallback-123')
+# --- CIBERSEGURANÇA E AMBIENTE ---
+# Busca as variáveis configuradas no painel do Render
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-padrao-123')
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 db_path = os.path.join(base_dir, 'database.db')
@@ -22,7 +22,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# --- MODELOS DO BANCO DE DADOS ---
+# --- MODELOS (Estrutura de Dados SQL) ---
 class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome_usuario = db.Column(db.String(80), unique=True, nullable=False)
@@ -37,54 +37,61 @@ class Tarefa(db.Model):
     prioridade = db.Column(db.Integer, default=2) # 3:Urgente, 2:Normal, 1:Baixa
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
 
-# --- CORREÇÃO PARA O RENDER: GARANTIR CRIAÇÃO DO BANCO ---
-# Essencial para evitar o Erro 500 no primeiro deploy
+# --- INICIALIZAÇÃO DO BANCO (Crucial para o Render) ---
+# Garante que as tabelas existam sem depender do 'if __name__'
 with app.app_context():
     db.create_all()
 
-# --- SISTEMA DE BACKUP AUTOMÁTICO ---
+# --- MOTOR DE BACKUP AUTOMÁTICO ---
 def enviar_backup():
     user = os.environ.get('EMAIL_USER')
     password = os.environ.get('EMAIL_PASS')
     destino = os.environ.get('EMAIL_DESTINO')
 
-    if all([user, password, destino]):
-        try:
-            zip_name = "backup_database.zip"
-            with zipfile.ZipFile(zip_name, 'w') as z:
-                if os.path.exists(db_path):
-                    z.write(db_path, arcname="database.db")
-            
-            msg = EmailMessage()
-            msg['Subject'] = f"📦 Backup Task Master SQL - Produção"
-            msg['From'] = user
-            msg['To'] = destino
-            msg.set_content("Backup automatizado do banco de dados SQLite.")
+    if not all([user, password, destino]):
+        return "❌ Erro: Variáveis de ambiente de e-mail ausentes."
 
-            with open(zip_name, 'rb') as f:
-                msg.add_attachment(f.read(), maintype='application', subtype='zip', filename=zip_name)
+    try:
+        # Usamos /tmp/ para evitar erros de permissão de escrita no Render
+        zip_path = "/tmp/backup_database.zip"
+        
+        with zipfile.ZipFile(zip_path, 'w') as z:
+            if os.path.exists(db_path):
+                z.write(db_path, arcname="database.db")
+        
+        msg = EmailMessage()
+        msg['Subject'] = "📦 Backup Automatizado - Task Master SQL"
+        msg['From'] = user
+        msg['To'] = destino
+        msg.set_content(f"Segue anexo o backup do banco de dados SQLite.")
 
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-                smtp.login(user, password)
-                smtp.send_message(msg)
-            
-            os.remove(zip_name)
-            print("✅ Backup enviado com sucesso.")
-        except Exception as e:
-            print(f"❌ Erro no backup: {e}")
+        with open(zip_path, 'rb') as f:
+            msg.add_attachment(f.read(), maintype='application', subtype='zip', filename="backup.zip")
+
+        # Conexão via TLS (Porta 587) para maior compatibilidade com a nuvem
+        with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
+            smtp.starttls() 
+            smtp.login(user, password)
+            smtp.send_message(msg)
+        
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+        return "✅ Sucesso! O arquivo ZIP foi enviado."
+
+    except Exception as e:
+        return f"❌ Erro Técnico: {str(e)}"
 
 # Agendador: executa toda segunda-feira às 03:00h
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=enviar_backup, trigger="cron", day_of_week="mon", hour=3)
 scheduler.start()
 
-# --- ROTAS PRINCIPAIS ---
+# --- ROTAS DE NAVEGAÇÃO ---
 
 @app.route('/')
 def index():
     if 'user_id' not in session: return redirect(url_for('login'))
     
-    # Sistema de Busca
     busca = request.args.get('q', '')
     query = Tarefa.query.filter_by(usuario_id=session['user_id'])
     if busca:
@@ -92,7 +99,7 @@ def index():
     
     minhas_tarefas = query.order_by(Tarefa.prioridade.desc(), Tarefa.data_vencimento).all()
     
-    # Estatísticas e Progresso
+    # Cálculo de Progresso
     total = len(minhas_tarefas)
     concluidas = len([t for t in minhas_tarefas if t.feito])
     p = int((concluidas / total) * 100) if total > 0 else 0
@@ -101,20 +108,19 @@ def index():
 
 @app.route('/admin-dashboard')
 def admin():
-    # Rota visualizada com sucesso localmente
     if 'user_id' not in session: return redirect(url_for('login'))
     
-    total_u = Usuario.query.count()
-    total_t = Tarefa.query.count()
-    concluidas = Tarefa.query.filter_by(feito=True).count()
+    u_count = Usuario.query.count()
+    t_count = Tarefa.query.count()
+    c_count = Tarefa.query.filter_by(feito=True).count()
     
-    return render_template('index.html', tela='admin', u_count=total_u, t_count=total_t, c_count=concluidas)
+    return render_template('index.html', tela='admin', u_count=u_count, t_count=t_count, c_count=c_count)
 
 @app.route('/backup-manual')
 def backup_manual():
-    # Rota secreta para testar se as variáveis de e-mail estão certas
-    enviar_backup()
-    return "Processo de backup disparado! Verifique seu e-mail."
+    # Rota secreta para validar as variáveis de ambiente agora mesmo
+    resultado = enviar_backup()
+    return resultado
 
 # --- AUTENTICAÇÃO E CRUD ---
 
@@ -156,7 +162,7 @@ def adicionar():
 
 @app.route('/completar/<int:id>')
 def completar(id):
-    # Uso do db.session.get para evitar LegacyAPIWarning
+    # Uso do db.session.get para evitar avisos de código legado
     t = db.session.get(Tarefa, id)
     if t and t.usuario_id == session.get('user_id'):
         t.feito = True
