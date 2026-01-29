@@ -1,0 +1,14 @@
+# Ambientes Virtuais
+venv/
+env/
+
+# Banco de Dados (Segurança)
+database.db
+*.db
+*.sqlite3
+
+# Arquivos de Cache e Sistema
+__pycache__/
+*.pyc
+.env
+.DS_StoreS
