@@ -8,17 +8,17 @@ from werkzeug.security import generate_password_hash, check_password_hash
 pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
-# Usa a SECRET_KEY que você configurou no painel do Render
+# Chave de segurança vinda das variáveis de ambiente do Render
 app.secret_key = os.environ.get('SECRET_KEY', 'marcelo-task-master-2026')
 
-# CONFIGURAÇÃO DE BANCO: Prioriza a DATABASE_URL (Google Cloud)
+# CONFIGURAÇÃO DE BANCO: Prioriza a nuvem e usa SQLite apenas como fallback local
 uri = os.environ.get('DATABASE_URL', 'sqlite:///database.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# --- MODELOS (Estrutura SQL) ---
+# --- MODELOS ---
 class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome_usuario = db.Column(db.String(80), unique=True, nullable=False)
@@ -36,7 +36,7 @@ class Tarefa(db.Model):
 with app.app_context():
     db.create_all()
 
-# --- ROTAS PRINCIPAIS ---
+# --- ROTAS ---
 @app.route('/')
 def index():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -96,7 +96,7 @@ def login():
         if user and check_password_hash(user.senha_hash, request.form.get('senha')):
             session['user_id'], session['user_nome'] = user.id, user.nome_usuario
             return redirect(url_for('index'))
-        flash('Credenciais incorretas.')
+        flash('Erro de login.')
     return render_template('index.html', tela='login')
 
 @app.route('/cadastro', methods=['GET', 'POST'])
