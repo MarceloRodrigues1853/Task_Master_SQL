@@ -2,7 +2,6 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Task Master SQL</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
@@ -10,14 +9,12 @@
         .progress-bar { background: #e9ecef; border-radius: 10px; height: 10px; margin: 15px 0; overflow: hidden; }
         .progress-fill { background: #28a745; height: 100%; transition: width 0.5s; }
         .form-add { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
-        input, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+        input, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; }
         .btn-add { background: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn-save { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         ul { list-style: none; padding: 0; }
-        li { background: #fff; margin-bottom: 10px; padding: 15px; display: flex; justify-content: space-between; border-radius: 8px; border-left: 6px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        li { background: #fff; margin-bottom: 10px; padding: 15px; display: flex; justify-content: space-between; align-items: center; border-radius: 8px; border-left: 6px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .prio-3 { border-left-color: #dc3545; } .prio-2 { border-left-color: #ffc107; } .prio-1 { border-left-color: #6c757d; }
         .concluida { text-decoration: line-through; opacity: 0.5; }
-        .btn-admin { background: #6f42c1; color: white; padding: 5px 10px; border-radius: 5px; font-size: 0.75rem; text-decoration: none; }
         .actions a { text-decoration: none; margin-left: 10px; font-size: 1.1rem; }
     </style>
 </head>
@@ -25,34 +22,28 @@
     <div class="card">
         {% if tela == 'app' %}
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <div style="font-weight: bold;">👤 {{ nome }}</div>
-                <div><a href="/admin-dashboard" class="btn-admin">Admin</a> <a href="/logout" style="color: #dc3545; font-size: 0.8rem; text-decoration: none; margin-left: 10px;">Sair</a></div>
+                <div style="font-weight: bold; color: #444;">👤 {{ nome }}</div>
+                <a href="/logout" style="color: #dc3545; font-size: 0.8rem; text-decoration: none;">Sair</a>
             </div>
             <h1 style="text-align: center;">🚀 Minhas Tarefas</h1>
-            <form action="/" method="GET" style="display:flex; gap:5px; margin-bottom:20px;">
-                <input type="text" name="q" placeholder="Pesquisar..." value="{{ busca }}" style="flex:1; border-radius:20px;">
-                <button type="submit" style="background:none; border:none; cursor:pointer;">🔍</button>
-            </form>
             <div class="progress-bar"><div class="progress-fill" style="width: {{ progresso }}%;"></div></div>
             <p style="text-align:center; font-size:0.8rem; color:#666;">{{ progresso }}% Concluído</p>
             
             <form action="{{ url_for('editar', id=tarefa_edit.id) if tarefa_edit else url_for('adicionar') }}" method="POST" class="form-add">
-                <input type="text" name="texto_tarefa" placeholder="O que fazer?" value="{{ tarefa_edit.texto if tarefa_edit else '' }}" required style="flex:2;">
+                <input type="text" name="texto_tarefa" placeholder="O que vamos fazer?" value="{{ tarefa_edit.texto if tarefa_edit else '' }}" required style="flex:2;">
                 <input type="date" name="data_vencimento" value="{{ tarefa_edit.data_vencimento if tarefa_edit else '' }}">
                 <select name="prioridade">
                     <option value="3" {{ 'selected' if tarefa_edit and tarefa_edit.prioridade == 3 }}>Urgente</option>
                     <option value="2" {{ 'selected' if not tarefa_edit or tarefa_edit.prioridade == 2 }}>Normal</option>
                     <option value="1" {{ 'selected' if tarefa_edit and tarefa_edit.prioridade == 1 }}>Baixa</option>
                 </select>
-                <button type="submit" class="{{ 'btn-save' if tarefa_edit else 'btn-add' }}">
-                    {{ 'Salvar' if tarefa_edit else 'Add' }}
-                </button>
+                <button type="submit" class="btn-add">{{ 'Salvar' if tarefa_edit else 'Add' }}</button>
             </form>
 
             <ul>
                 {% for t in tarefas %}
                 <li class="prio-{{ t.prioridade }}">
-                    <div style="flex:1;"><span class="{{ 'concluida' if t.feito else '' }}">{{ t.texto }}</span></div>
+                    <span class="{{ 'concluida' if t.feito else '' }}">{{ t.texto }}</span>
                     <div class="actions">
                         <a href="/editar/{{ t.id }}" title="Editar">✏️</a>
                         <a href="/completar/{{ t.id }}" title="Concluir">✔️</a>
@@ -61,10 +52,6 @@
                 </li>
                 {% endfor %}
             </ul>
-        {% elif tela == 'admin' %}
-            <h1>📊 Painel Administrativo</h1>
-            <p>Usuários: {{ u_count }} | Tarefas: {{ t_count }} | Concluídas: {{ c_count }}</p>
-            <a href="/" style="display:block; text-align:center; text-decoration:none;">Voltar</a>
         {% else %}
             <h1 style="text-align:center;">{{ '🔐 Login' if tela == 'login' else '📝 Cadastro' }}</h1>
             <form action="{{ url_for(tela) }}" method="POST" style="display:flex; flex-direction:column; gap:12px;">
@@ -72,7 +59,9 @@
                 <input type="password" name="senha" placeholder="Senha" required>
                 <button type="submit" class="btn-add">Confirmar</button>
             </form>
-            <a href="{{ url_for('cadastro' if tela == 'login' else 'login') }}" style="display:block; text-align:center; font-size:0.8rem; margin-top:15px;">{{ 'Criar conta' if tela == 'login' else 'Voltar' }}</a>
+            <a href="{{ url_for('cadastro' if tela == 'login' else 'login') }}" style="display:block; text-align:center; margin-top:15px; text-decoration:none; font-size:0.8rem;">
+                {{ 'Criar conta' if tela == 'login' else 'Voltar para Login' }}
+            </a>
         {% endif %}
     </div>
 </body>
