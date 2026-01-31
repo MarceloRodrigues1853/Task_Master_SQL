@@ -8,10 +8,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
-# Chave de segurança vinda das variáveis de ambiente do Render
+# Chave de segurança para sessões configurada no Render
 app.secret_key = os.environ.get('SECRET_KEY', 'marcelo-task-master-2026')
 
-# CONFIGURAÇÃO DE BANCO: Prioriza a nuvem e usa SQLite apenas como fallback local
+# CONFIGURAÇÃO DE BANCO: Prioriza a nuvem e usa SQLite como fallback local
 uri = os.environ.get('DATABASE_URL', 'sqlite:///database.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -33,6 +33,7 @@ class Tarefa(db.Model):
     prioridade = db.Column(db.Integer, default=2)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
 
+# Gatilho de criação de tabelas automática
 with app.app_context():
     db.create_all()
 

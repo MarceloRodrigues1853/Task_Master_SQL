@@ -49,15 +49,13 @@
                 {% endfor %}
             </ul>
         {% else %}
-            <h1 style="text-align:center;">{{ '🔐 Login' if tela == 'login' else '📝 Cadastro' }}</h1>
+            <h1>{{ '🔐 Login' if tela == 'login' else '📝 Cadastro' }}</h1>
             <form action="{{ url_for(tela) }}" method="POST" style="display:flex; flex-direction:column; gap:12px;">
                 <input type="text" name="usuario" placeholder="Usuário" required>
                 <input type="password" name="senha" placeholder="Senha" required>
                 <button type="submit" class="btn-add">Confirmar</button>
             </form>
-            <a href="{{ url_for('cadastro' if tela == 'login' else 'login') }}" style="display:block; text-align:center; margin-top:15px; text-decoration:none; font-size:0.8rem;">
-                {{ 'Criar conta' if tela == 'login' else 'Voltar' }}
-            </a>
+            <a href="{{ url_for('cadastro' if tela == 'login' else 'login') }}" style="display:block; text-align:center; margin-top:15px; text-decoration:none;">{{ 'Criar conta' if tela == 'login' else 'Voltar' }}</a>
         {% endif %}
     </div>
 </body>
