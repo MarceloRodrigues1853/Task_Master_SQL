@@ -28,8 +28,9 @@
             <h1 style="text-align: center;">🚀 Task Master</h1>
             <div class="progress-bar"><div class="progress-fill" style="width: {{ progresso }}%;"></div></div>
             <p style="text-align:center; font-size:0.8rem; color:#666;">{{ progresso }}% Concluído</p>
+            
             <form action="{{ url_for('editar', id=tarefa_edit.id) if tarefa_edit else url_for('adicionar') }}" method="POST" class="form-add">
-                <input type="text" name="texto_tarefa" placeholder="Sua próxima tarefa..." value="{{ tarefa_edit.texto if tarefa_edit else '' }}" required style="flex:2;">
+                <input type="text" name="texto_tarefa" placeholder="Nova tarefa..." value="{{ tarefa_edit.texto if tarefa_edit else '' }}" required style="flex:2;">
                 <select name="prioridade">
                     <option value="3" {{ 'selected' if tarefa_edit and tarefa_edit.prioridade == 3 }}>Urgente</option>
                     <option value="2" {{ 'selected' if not tarefa_edit or tarefa_edit.prioridade == 2 }}>Normal</option>
@@ -37,6 +38,7 @@
                 </select>
                 <button type="submit" class="btn-add">{{ 'Salvar' if tarefa_edit else 'Add' }}</button>
             </form>
+
             <ul>
                 {% for t in tarefas %}
                 <li class="prio-{{ t.prioridade }}">

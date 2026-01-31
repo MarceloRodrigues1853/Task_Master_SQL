@@ -8,10 +8,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
-# Segurança: Se não houver chave no ambiente, usa um fallback (apenas para dev local)
-app.secret_key = os.environ.get('SECRET_KEY', 'fallback-local-apenas')
+# Segurança: A SECRET_KEY protege as sessões
+app.secret_key = os.environ.get('SECRET_KEY', 'marcelo-cs-2026-v33-full')
 
-# Configuração de Banco: O Docker passará a URL via ambiente
+# Configuração de Banco: Prioriza Nuvem (Render) e aceita SQLite local
 uri = os.environ.get('DATABASE_URL', 'sqlite:///database.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -35,7 +35,7 @@ class Tarefa(db.Model):
 with app.app_context():
     db.create_all()
 
-# --- ROTAS ---
+# --- ROTAS PRINCIPAIS ---
 @app.route('/')
 def index():
     if 'user_id' not in session: return redirect(url_for('login'))
@@ -93,7 +93,7 @@ def login():
         if user and check_password_hash(user.senha_hash, request.form.get('senha')):
             session['user_id'], session['user_nome'] = user.id, user.nome_usuario
             return redirect(url_for('index'))
-        flash('Credenciais inválidas.')
+        flash('Erro de acesso.')
     return render_template('index.html', tela='login')
 
 @app.route('/cadastro', methods=['GET', 'POST'])
