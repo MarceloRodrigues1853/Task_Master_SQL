@@ -16,6 +16,8 @@ app.secret_key = os.environ.get("SECRET_KEY", "marcelo-cs-2026-v33-full")
 # - Em produção (Render): usa DATABASE_URL
 # - Local (sem DATABASE_URL): cai pro SQLite
 uri = os.environ.get("DATABASE_URL", "sqlite:///database.db")
+print("DB_CHECK:", uri.split("@")[-1])  # mostra só host:porta/banco
+
 
 # Render às vezes fornece postgres://, aqui não é seu caso, mas fica pronto
 if uri.startswith("postgres://"):
