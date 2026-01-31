@@ -1,6 +1,8 @@
 # Ambientes Virtuais
 venv/
 env/
+instance/
+mysql_data/
 
 # Banco de Dados (Segurança)
 database.db
@@ -12,6 +14,7 @@ __pycache__/
 *.pyc
 .env
 .DS_StoreS
+.venv/
 
 # Arquivos de Segurança
 seguranca/

@@ -25,10 +25,11 @@
                 <div style="font-weight: bold;">👤 {{ nome }}</div>
                 <a href="/logout" style="color: #dc3545; font-size: 0.8rem; text-decoration: none;">Sair</a>
             </div>
-            <h1 style="text-align: center;">🚀 Minhas Tarefas</h1>
+            <h1 style="text-align: center;">🚀 Task Master</h1>
             <div class="progress-bar"><div class="progress-fill" style="width: {{ progresso }}%;"></div></div>
+            <p style="text-align:center; font-size:0.8rem; color:#666;">{{ progresso }}% Concluído</p>
             <form action="{{ url_for('editar', id=tarefa_edit.id) if tarefa_edit else url_for('adicionar') }}" method="POST" class="form-add">
-                <input type="text" name="texto_tarefa" placeholder="Nova tarefa..." value="{{ tarefa_edit.texto if tarefa_edit else '' }}" required style="flex:2;">
+                <input type="text" name="texto_tarefa" placeholder="Sua próxima tarefa..." value="{{ tarefa_edit.texto if tarefa_edit else '' }}" required style="flex:2;">
                 <select name="prioridade">
                     <option value="3" {{ 'selected' if tarefa_edit and tarefa_edit.prioridade == 3 }}>Urgente</option>
                     <option value="2" {{ 'selected' if not tarefa_edit or tarefa_edit.prioridade == 2 }}>Normal</option>
@@ -41,9 +42,9 @@
                 <li class="prio-{{ t.prioridade }}">
                     <span class="{{ 'concluida' if t.feito else '' }}">{{ t.texto }}</span>
                     <div class="actions">
-                        <a href="/editar/{{ t.id }}">✏️</a>
-                        <a href="/completar/{{ t.id }}">✔️</a>
-                        <a href="/deletar/{{ t.id }}">🗑️</a>
+                        <a href="/editar/{{ t.id }}" title="Editar">✏️</a>
+                        <a href="/completar/{{ t.id }}" title="Concluir">✔️</a>
+                        <a href="/deletar/{{ t.id }}" title="Excluir">🗑️</a>
                     </div>
                 </li>
                 {% endfor %}

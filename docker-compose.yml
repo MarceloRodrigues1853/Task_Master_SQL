@@ -5,8 +5,9 @@ services:
     container_name: task_master_db
     restart: always
     environment:
-      MYSQL_DATABASE: task_master
-      MYSQL_ROOT_PASSWORD: root_password_123
+      # O Docker puxa automaticamente do arquivo .env
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
     ports:
       - "3306:3306"
     volumes:
@@ -14,11 +15,13 @@ services:
 
   web:
     build: .
+    restart: on-failure
     ports:
       - "5000:5000"
     environment:
-      - DATABASE_URL=mysql+pymysql://root:root_password_123@db:3306/task_master
-      - SECRET_KEY=sua_chave_secreta_local
+      # Montamos a URL usando as variáveis para não expor a senha aqui
+      - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/${MYSQL_DATABASE}
+      - SECRET_KEY=${SECRET_KEY}
     depends_on:
       - db
 

@@ -4,21 +4,21 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Inicializa o driver MySQL para o SQLAlchemy
+# Inicializa o driver MySQL
 pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
-# Chave de segurança para sessões configurada no Render
-app.secret_key = os.environ.get('SECRET_KEY', 'marcelo-task-master-2026')
+# Segurança: Se não houver chave no ambiente, usa um fallback (apenas para dev local)
+app.secret_key = os.environ.get('SECRET_KEY', 'fallback-local-apenas')
 
-# CONFIGURAÇÃO DE BANCO: Prioriza a nuvem e usa SQLite como fallback local
+# Configuração de Banco: O Docker passará a URL via ambiente
 uri = os.environ.get('DATABASE_URL', 'sqlite:///database.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# --- MODELOS ---
+# --- MODELOS SQL ---
 class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome_usuario = db.Column(db.String(80), unique=True, nullable=False)
@@ -29,11 +29,9 @@ class Tarefa(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     texto = db.Column(db.String(200), nullable=False)
     feito = db.Column(db.Boolean, default=False)
-    data_vencimento = db.Column(db.String(10), nullable=True)
-    prioridade = db.Column(db.Integer, default=2)
+    prioridade = db.Column(db.Integer, default=2) 
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
 
-# Gatilho de criação de tabelas automática
 with app.app_context():
     db.create_all()
 
@@ -55,7 +53,6 @@ def index():
 def adicionar():
     if 'user_id' in session:
         db.session.add(Tarefa(texto=request.form.get('texto_tarefa'), 
-                             data_vencimento=request.form.get('data_vencimento'),
                              prioridade=int(request.form.get('prioridade', 2)), 
                              usuario_id=session['user_id']))
         db.session.commit()
@@ -67,7 +64,6 @@ def editar(id):
     tarefa = db.session.get(Tarefa, id)
     if request.method == 'POST':
         tarefa.texto = request.form.get('texto_tarefa')
-        tarefa.data_vencimento = request.form.get('data_vencimento')
         tarefa.prioridade = int(request.form.get('prioridade'))
         db.session.commit()
         return redirect(url_for('index'))
@@ -97,7 +93,7 @@ def login():
         if user and check_password_hash(user.senha_hash, request.form.get('senha')):
             session['user_id'], session['user_nome'] = user.id, user.nome_usuario
             return redirect(url_for('index'))
-        flash('Erro de login.')
+        flash('Credenciais inválidas.')
     return render_template('index.html', tela='login')
 
 @app.route('/cadastro', methods=['GET', 'POST'])
