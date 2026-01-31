@@ -1,22 +1,35 @@
 import os
 import pymysql
+from urllib.parse import quote_plus
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Inicializa o driver MySQL
 pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
-
-# Segurança: A SECRET_KEY protege as sessões
 app.secret_key = os.environ.get("SECRET_KEY", "marcelo-cs-2026-v33-full")
 
-# Configuração do Banco
-# - Em produção (Render): usa DATABASE_URL
-# - Local (sem DATABASE_URL): cai pro SQLite
-uri = os.environ.get("DATABASE_URL", "sqlite:///database.db")
-print("DB_CHECK:", uri.split("@")[-1])  # mostra só host:porta/banco
+# --- DB CONFIG (Render / Cloud) ---
+db_user = os.environ.get("DB_USER")
+db_pass = os.environ.get("DB_PASS")
+db_host = os.environ.get("DB_HOST")
+db_port = os.environ.get("DB_PORT", "3306")
+db_name = os.environ.get("DB_NAME")
+
+if all([db_user, db_pass, db_host, db_name]):
+    # Escapa senha com segurança (ex: !, @, # etc)
+    safe_pass = quote_plus(db_pass)
+    uri = f"mysql+pymysql://{db_user}:{safe_pass}@{db_host}:{db_port}/{db_name}"
+else:
+    uri = "sqlite:///database.db"
+
+app.config["SQLALCHEMY_DATABASE_URI"] = uri
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+print("DB_CHECK:", uri.split("@")[-1])  # pode remover depois
 
 
 # Render às vezes fornece postgres://, aqui não é seu caso, mas fica pronto
