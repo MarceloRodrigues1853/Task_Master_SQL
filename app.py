@@ -36,13 +36,37 @@ def get_db():
 def init_db():
     db = get_db()
     cursor = db.cursor()
-    # No SQLite (local), INTEGER PRIMARY KEY já é auto-incremental.
-    # No MySQL (nuvem), usamos a sintaxe específica.
+    
     is_mysql = os.environ.get("DATABASE_URL") and "mysql" in os.environ.get("DATABASE_URL")
     pk_style = "INTEGER PRIMARY KEY AUTO_INCREMENT" if is_mysql else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    text_type = "VARCHAR(255)" if is_mysql else "TEXT"
 
-    cursor.execute(f"CREATE TABLE IF NOT EXISTS usuarios (id {pk_style}, usuario VARCHAR(100), senha VARCHAR(100))")
-    cursor.execute(f"CREATE TABLE IF NOT EXISTS tarefas (id {pk_style}, texto TEXT, prioridade INTEGER, feito INTEGER DEFAULT 0, usuario VARCHAR(100))")
+    # Criar tabelas se não existirem
+    cursor.execute(f"CREATE TABLE IF NOT EXISTS usuarios (id {pk_style})")
+    cursor.execute(f"CREATE TABLE IF NOT EXISTS tarefas (id {pk_style})")
+    
+    # Se estiver no MySQL/TiDB, garantir que as colunas existam (Add Column if not exists)
+    if is_mysql:
+        # Colunas para usuarios
+        for col, spec in [("usuario", "VARCHAR(100)"), ("senha", "VARCHAR(100)")]:
+            try:
+                cursor.execute(f"ALTER TABLE usuarios ADD COLUMN {col} {spec}")
+            except: pass # Ignora se a coluna já existir
+            
+        # Colunas para tarefas
+        for col, spec in [("texto", "TEXT"), ("prioridade", "INTEGER"), 
+                          ("feito", "INTEGER DEFAULT 0"), ("usuario", "VARCHAR(100)")]:
+            try:
+                cursor.execute(f"ALTER TABLE tarefas ADD COLUMN {col} {spec}")
+            except: pass # Ignora se a coluna já existir
+    else:
+        # No SQLite local, é mais fácil recriar ou apenas garantir a criação inicial
+        cursor.execute(f"""CREATE TABLE IF NOT EXISTS usuarios (
+            id {pk_style}, usuario VARCHAR(100), senha VARCHAR(100)
+        )""")
+        cursor.execute(f"""CREATE TABLE IF NOT EXISTS tarefas (
+            id {pk_style}, texto TEXT, prioridade INTEGER, feito INTEGER DEFAULT 0, usuario VARCHAR(100)
+        )""")
     
     if hasattr(db, 'commit'): db.commit()
     db.close()
