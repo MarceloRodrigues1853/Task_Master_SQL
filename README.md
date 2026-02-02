@@ -1,112 +1,68 @@
-# 🚀 Task Master SQL - Ecossistema de Gestão
+# 🚀 Task Master SQL - Ecossistema de Gestão (Cloud Native)
 
 ![Python](https://img.shields.io/badge/python-3.9+-blue.svg?style=for-the-badge&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/flask-%23000.svg?style=for-the-badge&logo=flask&logoColor=white)
-![SQLite](https://img.shields.io/badge/sqlite-%2307405e.svg?style=for-the-badge&logo=sqlite&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)
+![TiDB](https://img.shields.io/badge/TiDB-Cloud-f60?style=for-the-badge&logo=pingcap&logoColor=white)
+![Render](https://img.shields.io/badge/Render-Deployment-430098?style=for-the-badge&logo=render&logoColor=white)
 
-Este projeto representa minha evolução prática como estudante de Ciência da Computação. O que começou como um simples script de rotas em Flask evoluiu para uma aplicação Web completa, focada em segurança, persistência de dados e experiência do usuário.
-
----
-
-## 🛠️ Tecnologias e Conceitos Chave
-* **Backend:** Python 3 + Flask (Microframework)
-* **Banco de Dados Relacional:** SQLite gerenciado via SQLAlchemy (ORM) e Flask-Migrate para migrações seguras.
-* **Cibersegurança:** Implementação de hashing de senhas (Werkzeug) e controle robusto de sessões de usuário.
-* **Frontend:** Interface responsiva utilizando Jinja2 para templates dinâmicos e CSS moderno.
+Este projeto representa minha evolução técnica no curso de Ciência da Computação, transformando um protótipo acadêmico em uma solução real de **Cloud Computing** para impacto social.
 
 ---
 
-## 📈 Linha do Tempo Visual da Evolução
+## 🌐 Projeto de Extensão Universitária
+Este software integra o **Projeto de Extensão II**, sob o programa de **Ação e Difusão Cultural**.
+* **Objetivo:** Democratizar o acesso a ferramentas de gestão para grupos culturais e artesãos.
+* **Metodologia PDCA:** Desenvolvimento orientado pela resolução de problemas reais da comunidade.
 
-### 1. O Protótipo (MVP)
-O projeto nasceu focado apenas em entender a lógica de rotas do Flask e manipulação de listas em memória.
+---
+
+## 📈 Linha do Tempo e Evolução Visual
+
+### 1. O Protótipo Inicial (MVP)
+Focado no entendimento da lógica de rotas e manipulação de dados básicos.
 
 ![MVP Inicial](img/grenciador_tarefas_teste.png)
 
-### 2. Refinamento de Interface (UI/UX)
-Transição de listas simples para um design centrado em "Cards", melhorando a apresentação visual.
-
-![Visual Refinado](img/teste1.png)
-
-### 3. Persistência de Dados (SQL)
-Abandono do armazenamento em memória/JSON para a implementação de um banco de dados relacional real.
+### 2. Implementação de Persistência SQL e UI
+Transição para o armazenamento relacional e design centrado no usuário.
 
 ![Sistema SQL](img/teste4.png)
 
-### 4. Segurança e Multi-Usuário
-Desenvolvimento de um sistema completo de autenticação (Login/Cadastro), garantindo o isolamento dos dados de cada usuário.
+### 3. Autenticação e Segurança (Multi-usuário)
+Criação do sistema de login e isolamento de dados por perfil.
 
 ![Tela de Login](img/teste5.png)
 
-![Cadastro de Usuários](img/teste8.png)
+![Cadastro](img/teste8.png)
 
-### 5. Funcionalidades Avançadas (Dashboards)
-Implementação de barra de progresso dinâmica, sistema de prioridades visuais e datas de vencimento.
+### 4. Dashboards e Novas Funcionalidades (Cloud Ready)
+Versão final com barra de busca, filtros de prioridade e integração com **TiDB Cloud**.
 
-![Métricas e Prioridades](img/teste10.png)
+![Versão Final](img/teste_local_novas_features.png)
 
-![Visual de Prioridades](img/teste11.png)
-
-### 6. Área do Usuário (Perfil)
-Criação de um painel pessoal com estatísticas de desempenho e gestão segura de credenciais.
-
-![Perfil do Usuário](img/teste12.png)
+![Visual de Prioridades](img/render_web_sincronizado_atualizado-loca-bdtidb-render.png)
 
 ---
 
-## 🧠 Desafios de Engenharia Superados
-Durante o desenvolvimento, enfrentei e resolvi desafios técnicos importantes para um desenvolvedor backend:
+## 🛠️ Tecnologias e Desafios de Engenharia
+* **Arquitetura Híbrida:** Uso de SQLite para testes locais e **TiDB Cloud (MySQL)** para produção no **Render**.
+* **Gestão de Prazos:** Lógica **para** tratamento de datas de vencimento com alertas visuais de atraso.
+* **Segurança de Dados:** Conexões criptografadas (SSL/TLS) e proteção contra erros de schema (`OperationalError`).
 
-1.  **Inconsistência de Schema:** Superei erros críticos de sincronização de banco de dados (`OperationalError`) ao evoluir a estrutura das tabelas, aprendendo a usar migrações.
-    
-    ![Erro de Schema](img/teste9_erro.png)
-2.  **Modernização de Código:** Tratamento e atualização de chamadas de **API legadas** no **SQLAlchemy** para garantir compatibilidade futura.
+![Tratamento de Erros](img/teste9_erro.png)
 
 ---
 
-## 🚀 Como Executar o Projeto Localmente
+## 🚀 Como Executar
+1. **Clone:** `git clone https://github.com/MarceloRodrigues1853/Task_Master_SQL.git`
 
-Pré-requisitos: **Python 3** instalado.
+2. **Ambiente:** `python -m venv venv` e `pip install -r requirements.txt`
 
-1.  **Clone o repositório:**
-    ```bash
-    git clone [https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git](https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git)
-    
-    cd SEU_REPOSITORIO
-    ```
+3. **Variáveis:** Configure o arquivo `.env` com suas chaves de banco de dados e `SECRET_KEY`.
 
-2.  **Crie e ative um ambiente virtual:**
-    ```bash
-    # Windows
-    python -m venv venv
-    source venv/Scripts/activate
-    
-    # Linux/Mac
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-
-3.  **Instale as dependências:**
-    ```bash
-    pip install flask flask-sqlalchemy flask-migrate werkzeug
-    ```
-
-4.  **Inicialize o Banco de Dados:**
-    ```bash
-    flask db init
-    flask db migrate -m "Migração Inicial"
-    flask db upgrade
-    ```
-
-5.  **Execute a aplicação:**
-    ```bash
-    python app.py
-    ```
-    Acesse em seu navegador: `http://127.0.0.1:5000`
+4. **Run:** `python app.py`
 
 ---
 
 ## 📄 Licença
-
-Este projeto está licenciado sob a Licença MIT - sinta-se livre para usar, modificar e distribuir para fins educacionais. Veja o arquivo `LICENSE` para mais detalhes.
+Este projeto está licenciado sob a Licença MIT.
