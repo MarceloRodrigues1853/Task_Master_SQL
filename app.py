@@ -1,7 +1,5 @@
 import os
 import pymysql
-from urllib.parse import quote_plus
-
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -10,30 +8,16 @@ from werkzeug.security import generate_password_hash, check_password_hash
 pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "marcelo-cs-2026-v33-full")
+app.secret_key = os.environ.get("SECRET_KEY", "chave-seguranca-v41")
 
-# --- CONFIG DB (Render/Cloud) ---
-db_user = os.environ.get("DB_USER")
-db_pass = os.environ.get("DB_PASS")
-db_host = os.environ.get("DB_HOST")
-db_port = os.environ.get("DB_PORT", "3306")
-db_name = os.environ.get("DB_NAME")
-
-if all([db_user, db_pass, db_host, db_name]):
-    safe_pass = quote_plus(db_pass)
-    uri = f"mysql+pymysql://{db_user}:{safe_pass}@{db_host}:{db_port}/{db_name}"
-else:
-    uri = os.environ.get("DATABASE_URL", "sqlite:///database.db")
-
+# Configuração do Banco: Prioriza TiDB/Nuvem e usa SQLite local como reserva
+uri = os.environ.get("DATABASE_URL", "sqlite:///database.db")
 app.config["SQLALCHEMY_DATABASE_URI"] = uri
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# ✅ CRIA SÓ UMA VEZ
 db = SQLAlchemy(app)
 
-print("DB_CHECK:", uri.split("@")[-1])  # remove depois
-
-# --- MODELOS SQL ---
+# --- MODELOS ---
 class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome_usuario = db.Column(db.String(80), unique=True, nullable=False)
@@ -47,68 +31,44 @@ class Tarefa(db.Model):
     prioridade = db.Column(db.Integer, default=2)
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuario.id"), nullable=False)
 
+# Inicialização segura das tabelas
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+        print("✅ DATABASE: Tabelas criadas no novo banco com sucesso!")
+    except Exception as e:
+        print(f"❌ DATABASE ERROR: {e}")
 
-# --- ROTAS PRINCIPAIS ---
+# --- ROTAS CRUD ---
 @app.route("/")
 def index():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    busca = request.args.get("q", "")
-    query = Tarefa.query.filter_by(usuario_id=session["user_id"])
-    if busca:
-        query = query.filter(Tarefa.texto.contains(busca))
-
-    tarefas = query.order_by(Tarefa.prioridade.desc()).all()
-
+    if "user_id" not in session: return redirect(url_for("login"))
+    tarefas = Tarefa.query.filter_by(usuario_id=session["user_id"]).order_by(Tarefa.prioridade.desc()).all()
     total = len(tarefas)
     concluidas = len([t for t in tarefas if t.feito])
     p = int((concluidas / total) * 100) if total > 0 else 0
-
-    return render_template(
-        "index.html",
-        tarefas=tarefas,
-        progresso=p,
-        busca=busca,
-        tela="app",
-        nome=session.get("user_nome"),
-    )
+    return render_template("index.html", tarefas=tarefas, progresso=p, tela="app", nome=session.get("user_nome"))
 
 @app.route("/adicionar", methods=["POST"])
 def adicionar():
     if "user_id" in session:
-        db.session.add(
-            Tarefa(
-                texto=request.form.get("texto_tarefa"),
-                prioridade=int(request.form.get("prioridade", 2)),
-                usuario_id=session["user_id"],
-            )
-        )
+        db.session.add(Tarefa(texto=request.form.get("texto_tarefa"), 
+                             prioridade=int(request.form.get("prioridade", 2)), 
+                             usuario_id=session["user_id"]))
         db.session.commit()
     return redirect(url_for("index"))
 
 @app.route("/editar/<int:id>", methods=["GET", "POST"])
 def editar(id):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
+    if "user_id" not in session: return redirect(url_for("login"))
     tarefa = db.session.get(Tarefa, id)
     if request.method == "POST":
         tarefa.texto = request.form.get("texto_tarefa")
         tarefa.prioridade = int(request.form.get("prioridade"))
         db.session.commit()
         return redirect(url_for("index"))
-
     tarefas = Tarefa.query.filter_by(usuario_id=session["user_id"]).all()
-    return render_template(
-        "index.html",
-        tarefas=tarefas,
-        tarefa_edit=tarefa,
-        tela="app",
-        nome=session.get("user_nome"),
-    )
+    return render_template("index.html", tarefas=tarefas, tarefa_edit=tarefa, tela="app", nome=session.get("user_nome"))
 
 @app.route("/deletar/<int:id>")
 def deletar(id):
@@ -133,7 +93,7 @@ def login():
         if user and check_password_hash(user.senha_hash, request.form.get("senha")):
             session["user_id"], session["user_nome"] = user.id, user.nome_usuario
             return redirect(url_for("index"))
-        flash("Erro de acesso.")
+        flash("Credenciais inválidas.")
     return render_template("index.html", tela="login")
 
 @app.route("/cadastro", methods=["GET", "POST"])
@@ -141,12 +101,7 @@ def cadastro():
     if request.method == "POST":
         nome = request.form.get("usuario")
         if not Usuario.query.filter_by(nome_usuario=nome).first():
-            db.session.add(
-                Usuario(
-                    nome_usuario=nome,
-                    senha_hash=generate_password_hash(request.form.get("senha")),
-                )
-            )
+            db.session.add(Usuario(nome_usuario=nome, senha_hash=generate_password_hash(request.form.get("senha"))))
             db.session.commit()
             return redirect(url_for("login"))
     return render_template("index.html", tela="cadastro")
