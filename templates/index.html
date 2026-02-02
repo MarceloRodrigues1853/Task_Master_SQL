@@ -6,30 +6,23 @@
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
         .card { background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 550px; }
-        
-        /* Barra de Progresso */
         .progress-bar { background: #e9ecef; border-radius: 10px; height: 10px; margin: 15px 0; overflow: hidden; }
         .progress-fill { background: #28a745; height: 100%; transition: width 0.5s; }
-        
-        /* Formulário */
-        .form-add { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .form-add, .form-search { display: flex; gap: 8px; margin-bottom: 1.2rem; flex-wrap: wrap; }
         input, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
         input:focus { border-color: #28a745; }
-        
-        /* Botões */
         .btn-add { background: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; flex-grow: 1; }
+        .btn-search { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         .btn-cancel { background: #6c757d; color: white; text-decoration: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-        
-        /* Lista de Tarefas */
         ul { list-style: none; padding: 0; }
         li { background: #fff; margin-bottom: 10px; padding: 15px; display: flex; justify-content: space-between; align-items: center; border-radius: 8px; border-left: 6px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        
-        /* Cores de Prioridade */
-        .prio-3 { border-left-color: #dc3545; } /* Urgente */
-        .prio-2 { border-left-color: #ffc107; } /* Normal */
-        .prio-1 { border-left-color: #6c757d; } /* Baixa */
-        
+        .prio-3 { border-left-color: #dc3545; }
+        .prio-2 { border-left-color: #ffc107; }
+        .prio-1 { border-left-color: #6c757d; }
         .concluida { text-decoration: line-through; opacity: 0.5; }
+        .task-content { display: flex; flex-direction: column; flex-grow: 1; }
+        .task-date { font-size: 0.75rem; color: #888; margin-top: 4px; }
+        .atrasada { color: #dc3545 !important; font-weight: bold; }
         .actions a { text-decoration: none; margin-left: 10px; font-size: 1.1rem; filter: grayscale(100%); transition: 0.2s; }
         .actions a:hover { filter: grayscale(0%); }
     </style>
@@ -41,56 +34,58 @@
                 <div style="font-weight: bold;">👤 {{ nome }}</div>
                 <a href="/logout" style="color: #dc3545; font-size: 0.8rem; text-decoration: none;">Sair</a>
             </div>
-
             <h1 style="text-align: center; margin: 0;">🚀 Task Master</h1>
-            
             <div class="progress-bar"><div class="progress-fill" style="width: {{ progresso }}%;"></div></div>
             <p style="text-align:center; font-size:0.8rem; color:#666; margin-top: -10px; margin-bottom: 20px;">{{ progresso }}% Concluído</p>
             
+            <form method="GET" action="/" class="form-search">
+                <input type="text" name="busca" placeholder="🔍 Pesquisar..." value="{{ busca if busca else '' }}" style="flex: 1;">
+                <button type="submit" class="btn-search">Filtrar</button>
+                {% if busca %}<a href="/" class="btn-cancel">✕</a>{% endif %}
+            </form>
+
             <form action="{{ url_for('editar', id=tarefa_edit.id) if tarefa_edit else url_for('adicionar') }}" method="POST" class="form-add">
-                <input type="text" name="texto_tarefa" placeholder="O que precisa ser feito?" value="{{ tarefa_edit.texto if tarefa_edit else '' }}" required style="flex:3;">
-                
-                <select name="prioridade">
+                <input type="text" name="texto_tarefa" placeholder="O que fazer?" value="{{ tarefa_edit.texto if tarefa_edit else '' }}" required style="flex-basis: 100%;">
+                <input type="date" name="data_vencimento" value="{{ tarefa_edit.data_vencimento if tarefa_edit else '' }}" style="flex: 1.5;">
+                <select name="prioridade" style="flex: 1;">
                     <option value="3" {{ 'selected' if tarefa_edit and tarefa_edit.prioridade == 3 }}>Urgente</option>
                     <option value="2" {{ 'selected' if not tarefa_edit or tarefa_edit.prioridade == 2 }}>Normal</option>
                     <option value="1" {{ 'selected' if tarefa_edit and tarefa_edit.prioridade == 1 }}>Baixa</option>
                 </select>
-
-                <button type="submit" class="btn-add">
-                    {{ 'Atualizar' if tarefa_edit else 'Salvar' }}
-                </button>
-
-                {% if tarefa_edit %}
-                    <a href="{{ url_for('index') }}" class="btn-cancel" title="Cancelar edição">✕</a>
-                {% endif %}
+                <button type="submit" class="btn-add">{{ 'Atualizar' if tarefa_edit else 'Salvar' }}</button>
+                {% if tarefa_edit %}<a href="{{ url_for('index') }}" class="btn-cancel">✕</a>{% endif %}
             </form>
 
             <ul>
                 {% for t in tarefas %}
                 <li class="prio-{{ t.prioridade }}">
-                    <span class="{{ 'concluida' if t.feito else '' }}">{{ t.texto }}</span>
+                    <div class="task-content">
+                        <span class="{{ 'concluida' if t.feito else '' }}">{{ t.texto }}</span>
+                        {% if t.data_vencimento %}
+                        <span class="task-date {{ 'atrasada' if t.data_vencimento|string < hoje and not t.feito else '' }}">
+                            📅 {{ t.data_vencimento }} {{ '(Atrasada!)' if t.data_vencimento|string < hoje and not t.feito else '' }}
+                        </span>
+                        {% endif %}
+                    </div>
                     <div class="actions">
                         {% if not t.feito %}
                             <a href="/editar/{{ t.id }}" title="Editar">✏️</a>
                             <a href="/completar/{{ t.id }}" title="Concluir">✔️</a>
                         {% endif %}
-                        <a href="/deletar/{{ t.id }}" onclick="return confirm('Excluir esta tarefa?')" title="Excluir">🗑️</a>
+                        <a href="/deletar/{{ t.id }}" onclick="return confirm('Excluir?')" title="Excluir">🗑️</a>
                     </div>
                 </li>
                 {% endfor %}
             </ul>
-
         {% else %}
             <h1 style="text-align: center;">{{ '🔐 Login' if tela == 'login' else '📝 Cadastro' }}</h1>
             <form action="{{ url_for(tela) }}" method="POST" style="display:flex; flex-direction:column; gap:12px;">
-                <input type="text" name="usuario" placeholder="Nome de usuário" required>
-                <input type="password" name="senha" placeholder="Sua senha" required>
+                <input type="text" name="usuario" placeholder="Usuário" required>
+                <input type="password" name="senha" placeholder="Senha" required>
                 <button type="submit" class="btn-add">Confirmar</button>
             </form>
             <div style="text-align: center; margin-top: 15px;">
-                <a href="{{ url_for('cadastro' if tela == 'login' else 'login') }}" style="text-decoration:none; color: #007bff; font-size: 0.9rem;">
-                    {{ 'Ainda não tem conta? Criar conta' if tela == 'login' else 'Já tem conta? Voltar ao login' }}
-                </a>
+                <a href="{{ url_for('cadastro' if tela == 'login' else 'login') }}" style="text-decoration:none; color:#007bff;">{{ 'Criar conta' if tela == 'login' else 'Voltar ao login' }}</a>
             </div>
         {% endif %}
     </div>
