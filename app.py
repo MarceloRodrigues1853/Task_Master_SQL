@@ -2,116 +2,87 @@ import os
 import sqlite3
 import pymysql
 import pymysql.cursors
+from urllib.parse import urlparse
 from flask import Flask, render_template, request, redirect, url_for, session
 
 app = Flask(__name__)
-# Usa a SECRET_KEY do Render ou uma padrão para desenvolvimento local
 app.secret_key = os.environ.get("SECRET_KEY", "chave_mestra_local_123")
 
-# ---------- CONEXÃO HÍBRIDA (LOCAL / NUVEM) ----------
 def get_db():
     db_url = os.environ.get("DATABASE_URL")
     
-    if db_url:
-        # Configuração para o Render (TiDB / MySQL)
-        # Exemplo de URL: mysql+pymysql://user:pass@host:port/dbname
+    if db_url and "mysql" in db_url:
         try:
-            # Remove o prefixo do SQLAlchemy para o PyMySQL
-            limpo = db_url.replace("mysql+pymysql://", "")
-            user_pass, resto = limpo.split("@")
-            usuario, senha = user_pass.split(":")
-            host_porto, db_nome_com_query = resto.split("/")
-            host, porto = host_porto.split(":")
-            db_nome = db_nome_com_query.split("?")[0]
-            
+            # Forma robusta de extrair dados da URL do Render
+            url = urlparse(db_url)
             return pymysql.connect(
-                host=host,
-                port=int(porto),
-                user=usuario,
-                password=senha,
-                database=db_nome,
+                host=url.hostname,
+                port=url.port or 3306,
+                user=url.username,
+                password=url.password,
+                database=url.path.lstrip('/'),
                 cursorclass=pymysql.cursors.DictCursor,
-                ssl={'ca': '/etc/ssl/certs/ca-certificates.crt'} # Caminho padrão no Render
+                ssl={'ca': '/etc/ssl/certs/ca-certificates.crt'}
             )
         except Exception as e:
             print(f"Erro na conexão remota: {e}")
 
-    # Configuração para Local (SQLite)
+    # Fallback para Local (SQLite)
     basedir = os.path.abspath(os.path.dirname(__file__))
     conn = sqlite3.connect(os.path.join(basedir, "database.db"))
     conn.row_factory = sqlite3.Row
     return conn
 
-# ---------- INICIALIZAÇÃO DO BANCO ----------
 def init_db():
     db = get_db()
     cursor = db.cursor()
-    
-    # Diferenciação de sintaxe para evitar o erro OperationalError no SQLite
-    is_mysql = os.environ.get("DATABASE_URL") is not None
+    # No SQLite (local), INTEGER PRIMARY KEY já é auto-incremental.
+    # No MySQL (nuvem), usamos a sintaxe específica.
+    is_mysql = os.environ.get("DATABASE_URL") and "mysql" in os.environ.get("DATABASE_URL")
     pk_style = "INTEGER PRIMARY KEY AUTO_INCREMENT" if is_mysql else "INTEGER PRIMARY KEY AUTOINCREMENT"
 
-    cursor.execute(f"""
-    CREATE TABLE IF NOT EXISTS usuarios (
-        id {pk_style},
-        usuario VARCHAR(100) NOT NULL,
-        senha VARCHAR(100) NOT NULL
-    )""")
+    cursor.execute(f"CREATE TABLE IF NOT EXISTS usuarios (id {pk_style}, usuario VARCHAR(100), senha VARCHAR(100))")
+    cursor.execute(f"CREATE TABLE IF NOT EXISTS tarefas (id {pk_style}, texto TEXT, prioridade INTEGER, feito INTEGER DEFAULT 0, usuario VARCHAR(100))")
     
-    cursor.execute(f"""
-    CREATE TABLE IF NOT EXISTS tarefas (
-        id {pk_style},
-        texto TEXT NOT NULL,
-        prioridade INTEGER,
-        feito INTEGER DEFAULT 0,
-        usuario VARCHAR(100)
-    )""")
-    
-    if hasattr(db, 'commit'):
-        db.commit()
+    if hasattr(db, 'commit'): db.commit()
     db.close()
 
-# Inicializa o banco ao abrir o app
 with app.app_context():
     try:
         init_db()
     except Exception as e:
         print(f"Aviso ao iniciar banco: {e}")
 
-# ---------- ROTAS ----------
+# Helper para placeholders de SQL
+def get_ph():
+    return "%s" if os.environ.get("DATABASE_URL") and "mysql" in os.environ.get("DATABASE_URL") else "?"
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        usuario, senha = request.form["usuario"], request.form["senha"]
         db = get_db()
         cursor = db.cursor()
-        
-        # Ajuste de placeholders (%s para MySQL, ? para SQLite)
-        sql = "SELECT * FROM usuarios WHERE usuario = %s AND senha = %s" if os.environ.get("DATABASE_URL") else \
-              "SELECT * FROM usuarios WHERE usuario = ? AND senha = ?"
-        
-        cursor.execute(sql, (usuario, senha))
+        ph = get_ph()
+        cursor.execute(f"SELECT * FROM usuarios WHERE usuario = {ph} AND senha = {ph}", 
+                       (request.form["usuario"], request.form["senha"]))
         user = cursor.fetchone()
         db.close()
-
         if user:
-            session["usuario"] = usuario
+            session["usuario"] = request.form["usuario"]
             return redirect(url_for("index"))
     return render_template("index.html", tela="login")
 
 @app.route("/cadastro", methods=["GET", "POST"])
 def cadastro():
     if request.method == "POST":
-        usuario, senha = request.form["usuario"], request.form["senha"]
         db = get_db()
         cursor = db.cursor()
-        sql = "INSERT INTO usuarios (usuario, senha) VALUES (%s, %s)" if os.environ.get("DATABASE_URL") else \
-              "INSERT INTO usuarios (usuario, senha) VALUES (?, ?)"
-        cursor.execute(sql, (usuario, senha))
+        ph = get_ph()
+        cursor.execute(f"INSERT INTO usuarios (usuario, senha) VALUES ({ph}, {ph})", 
+                       (request.form["usuario"], request.form["senha"]))
         if hasattr(db, 'commit'): db.commit()
         db.close()
-        session["usuario"] = usuario
+        session["usuario"] = request.form["usuario"]
         return redirect(url_for("index"))
     return render_template("index.html", tela="cadastro")
 
@@ -125,77 +96,58 @@ def index():
     if "usuario" not in session: return redirect(url_for("login"))
     db = get_db()
     cursor = db.cursor()
-    sql = "SELECT * FROM tarefas WHERE usuario = %s ORDER BY feito ASC, prioridade DESC" if os.environ.get("DATABASE_URL") else \
-          "SELECT * FROM tarefas WHERE usuario = ? ORDER BY feito ASC, prioridade DESC"
-    cursor.execute(sql, (session["usuario"],))
+    ph = get_ph()
+    cursor.execute(f"SELECT * FROM tarefas WHERE usuario = {ph} ORDER BY feito ASC, prioridade DESC", (session["usuario"],))
     tarefas = cursor.fetchall()
-    
     total = len(tarefas)
-    feitas = len([t for t in tarefas if t["feito"] == 1 or t["feito"] is True])
+    feitas = len([t for t in tarefas if t["feito"] in [1, True]])
     progresso = int((feitas / total) * 100) if total > 0 else 0
     db.close()
     return render_template("index.html", tela="app", nome=session["usuario"], tarefas=tarefas, progresso=progresso, tarefa_edit=None)
 
 @app.route("/adicionar", methods=["POST"])
 def adicionar():
-    if "usuario" not in session: return redirect(url_for("login"))
     db = get_db()
     cursor = db.cursor()
-    sql = "INSERT INTO tarefas (texto, prioridade, feito, usuario) VALUES (%s, %s, 0, %s)" if os.environ.get("DATABASE_URL") else \
-          "INSERT INTO tarefas (texto, prioridade, feito, usuario) VALUES (?, ?, 0, ?)"
-    cursor.execute(sql, (request.form["texto_tarefa"], request.form["prioridade"], session["usuario"]))
+    ph = get_ph()
+    cursor.execute(f"INSERT INTO tarefas (texto, prioridade, feito, usuario) VALUES ({ph}, {ph}, 0, {ph})", 
+                   (request.form["texto_tarefa"], request.form["prioridade"], session["usuario"]))
     if hasattr(db, 'commit'): db.commit()
     db.close()
     return redirect(url_for("index"))
 
 @app.route("/editar/<int:id>", methods=["GET", "POST"])
 def editar(id):
-    if "usuario" not in session: return redirect(url_for("login"))
     db = get_db()
     cursor = db.cursor()
-    placeholder = "%s" if os.environ.get("DATABASE_URL") else "?"
-
+    ph = get_ph()
     if request.method == "POST":
-        sql = f"UPDATE tarefas SET texto = {placeholder}, prioridade = {placeholder} WHERE id = {placeholder} AND usuario = {placeholder}"
-        cursor.execute(sql, (request.form["texto_tarefa"], request.form["prioridade"], id, session["usuario"]))
+        cursor.execute(f"UPDATE tarefas SET texto = {ph}, prioridade = {ph} WHERE id = {ph} AND usuario = {ph}",
+                       (request.form["texto_tarefa"], request.form["prioridade"], id, session["usuario"]))
         if hasattr(db, 'commit'): db.commit()
         db.close()
         return redirect(url_for("index"))
-
-    sql_select = f"SELECT * FROM tarefas WHERE id = {placeholder} AND usuario = {placeholder}"
-    cursor.execute(sql_select, (id, session["usuario"]))
+    cursor.execute(f"SELECT * FROM tarefas WHERE id = {ph} AND usuario = {ph}", (id, session["usuario"]))
     tarefa = cursor.fetchone()
-    
-    # Busca a lista para manter o fundo da página preenchido
-    sql_list = f"SELECT * FROM tarefas WHERE usuario = {placeholder} ORDER BY feito ASC, prioridade DESC"
-    cursor.execute(sql_list, (session["usuario"],))
-    tarefas = cursor.fetchall()
-    
-    total = len(tarefas)
-    feitas = len([t for t in tarefas if t["feito"] == 1 or t["feito"] is True])
-    progresso = int((feitas / total) * 100) if total > 0 else 0
-    
     db.close()
-    return render_template("index.html", tela="app", nome=session["usuario"], tarefas=tarefas, progresso=progresso, tarefa_edit=tarefa)
+    return render_template("index.html", tela="app", nome=session["usuario"], tarefas=[], progresso=0, tarefa_edit=tarefa)
 
 @app.route("/completar/<int:id>")
 def completar(id):
-    if "usuario" not in session: return redirect(url_for("login"))
     db = get_db()
     cursor = db.cursor()
-    placeholder = "%s" if os.environ.get("DATABASE_URL") else "?"
-    cursor.execute(f"UPDATE tarefas SET feito = 1 WHERE id = {placeholder} AND usuario = {placeholder}", (id, session["usuario"]))
+    ph = get_ph()
+    cursor.execute(f"UPDATE tarefas SET feito = 1 WHERE id = {ph} AND usuario = {ph}", (id, session["usuario"]))
     if hasattr(db, 'commit'): db.commit()
     db.close()
     return redirect(url_for("index"))
 
 @app.route("/deletar/<int:id>")
 def deletar(id):
-    if "usuario" not in session: return redirect(url_for("login"))
     db = get_db()
     cursor = db.cursor()
-    placeholder = "%s" if os.environ.get("DATABASE_URL") else "?"
-    cursor.execute(f"DELETE FROM tarefas WHERE id = {placeholder} AND usuario = {placeholder}", (id, session["usuario"]))
+    ph = get_ph()
+    cursor.execute(f"DELETE FROM tarefas WHERE id = {ph} AND usuario = {ph}", (id, session["usuario"]))
     if hasattr(db, 'commit'): db.commit()
     db.close()
     return redirect(url_for("index"))
